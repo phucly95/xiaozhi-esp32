@@ -3,7 +3,7 @@
 
 #include <driver/gpio.h>
 
-// ===== Dsolution 1.83 Inch 1 Mic =====
+// ===== FelixNguyen 1.83 Inch 1 Mic =====
 // Display: NV3030B/ST7789P, 284x240, SPI
 
 // Audio I2S Configuration - 1 Mic version

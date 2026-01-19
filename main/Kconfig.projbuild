@@ -464,8 +464,8 @@ choice BOARD_TYPE
     config BOARD_TYPE_HU_087
         bool "HU-087"
         depends on IDF_TARGET_ESP32S3
-    config BOARD_TYPE_DSOLUTION_1_83_1MIC
-        bool "Dsolution 1.83 Inch 1 Mic (284x240 LCD)"
+    config BOARD_TYPE_FELIXNGUYEN_1_83_1MIC
+        bool "FelixNguyen 1.83 Inch 1 Mic (280x240 LCD)"
         depends on IDF_TARGET_ESP32S3
 endchoice
 

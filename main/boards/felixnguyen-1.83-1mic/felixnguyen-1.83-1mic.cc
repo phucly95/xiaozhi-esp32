@@ -17,7 +17,7 @@
 #include <driver/rtc_io.h>
 #include <esp_sleep.h>
 
-#define TAG "DSOLUTION_1_83_1MIC"
+#define TAG "FELIXNGUYEN_1_83_1MIC"
 
 // NV3030B 1.83" 240x280 FULL initialization sequence
 // Based on ChatGPT research from Waveshare documentation
@@ -75,7 +75,7 @@ static const nv3023_lcd_init_cmd_t nv3030b_183_init_cmds[] = {
     {0x29, (uint8_t []){0}, 0, 10},
 };
 
-class DsolutionLcd183Board : public WifiBoard {
+class FelixNguyenLcd183Board : public WifiBoard {
 private:
     Button boot_button_;
     Button volume_up_button_;
@@ -203,7 +203,7 @@ private:
     }
 
 public:
-    DsolutionLcd183Board() :
+    FelixNguyenLcd183Board() :
         boot_button_(BOOT_BUTTON_GPIO),
         volume_up_button_(VOLUME_UP_BUTTON_GPIO),
         volume_down_button_(VOLUME_DOWN_BUTTON_GPIO) {
@@ -245,4 +245,4 @@ public:
     }
 };
 
-DECLARE_BOARD(DsolutionLcd183Board);
+DECLARE_BOARD(FelixNguyenLcd183Board);
