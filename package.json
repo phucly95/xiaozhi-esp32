@@ -1,0 +1,26 @@
+{
+  "name": "xiaozhi-esp32",
+  "version": "1.0.0",
+  "description": "(English | [中文](README_zh.md) | [日本語](README_ja.md))",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/78/xiaozhi-esp32.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/78/xiaozhi-esp32/issues"
+  },
+  "homepage": "https://github.com/78/xiaozhi-esp32#readme",
+  "dependencies": {
+    "lv_font_conv": "^1.5.3"
+  }
+}
