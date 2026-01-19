@@ -1,0 +1,9 @@
+{
+    "target": "esp32s3",
+    "builds": [
+        {
+            "name": "dsolution-1.83-1mic",
+            "sdkconfig_append": []
+        }
+    ]
+}
