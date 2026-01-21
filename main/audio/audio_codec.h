@@ -11,8 +11,8 @@
 
 #include "board.h"
 
-#define AUDIO_CODEC_DMA_DESC_NUM 6
-#define AUDIO_CODEC_DMA_FRAME_NUM 240
+#define AUDIO_CODEC_DMA_DESC_NUM 12      // Increased from 6 for smoother streaming
+#define AUDIO_CODEC_DMA_FRAME_NUM 512    // Increased from 240 (total 6144 samples = 384ms at 16kHz)
 
 class AudioCodec {
 public:

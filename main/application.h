@@ -16,6 +16,7 @@
 #include "audio_service.h"
 #include "device_state.h"
 #include "device_state_machine.h"
+#include "background_audio_mode.h"
 
 // Main event bits
 #define MAIN_EVENT_SCHEDULE             (1 << 0)
@@ -113,6 +114,11 @@ public:
     void PlaySound(const std::string_view& sound);
     AudioService& GetAudioService() { return audio_service_; }
     
+    // Background Audio Mode Management
+    void SetBackgroundAudioMode(BackgroundAudioMode mode) { background_audio_mode_ = mode; }
+    BackgroundAudioMode GetBackgroundAudioMode() const { return background_audio_mode_; }
+    bool IsBackgroundAudioPlaying() const { return background_audio_mode_ != kBackgroundAudioNone; }
+    
     /**
      * Reset protocol resources (thread-safe)
      * Can be called from any task to release resources allocated after network connected
@@ -132,6 +138,7 @@ private:
     DeviceStateMachine state_machine_;
     ListeningMode listening_mode_ = kListeningModeAutoStop;
     AecMode aec_mode_ = kAecOff;
+    BackgroundAudioMode background_audio_mode_ = kBackgroundAudioNone;
     std::string last_error_message_;
     AudioService audio_service_;
     std::unique_ptr<Ota> ota_;

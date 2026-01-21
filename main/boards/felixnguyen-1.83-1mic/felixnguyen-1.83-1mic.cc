@@ -7,6 +7,9 @@
 #include "config.h"
 #include "power_save_timer.h"
 #include "assets/lang_config.h"
+#include "mcp_server.h"
+#include "audio/radio_player.h"
+#include "audio/radio_stations.h"
 
 #include <esp_log.h>
 #include <esp_lcd_panel_vendor.h>
@@ -212,6 +215,10 @@ public:
         InitializeButtons();
         InitializeNv3030bDisplay();
         GetBacklight()->RestoreBrightness();
+        
+        // Initialize radio player and register MCP tools
+        RadioPlayer::GetInstance().Initialize(GetAudioCodec());
+        RegisterRadioTools();
     }
 
     virtual AudioCodec* GetAudioCodec() override {
@@ -242,6 +249,33 @@ public:
             power_save_timer_->WakeUp();
         }
         WifiBoard::SetPowerSaveLevel(level);
+    }
+
+private:
+    void RegisterRadioTools() {
+        auto& mcp = McpServer::GetInstance();
+        auto& db = RadioStationsDB::GetInstance();
+        
+        // Radio playback tool
+        mcp.AddTool("self.audio.play_radio",
+            db.GetStationListDescription(),
+            PropertyList({
+                Property("station", kPropertyTypeString, "Station ID (e.g., vov1, voh)")
+            }),
+            [](const PropertyList& props) -> ReturnValue {
+                auto id = props["station"].value<std::string>();
+                bool success = RadioPlayer::GetInstance().Play(id);
+                return success;
+            });
+        
+        // Stop audio tool
+        mcp.AddTool("self.audio.stop",
+            "Stop current audio playback (radio or music)",
+            PropertyList(),
+            [](const PropertyList&) -> ReturnValue {
+                RadioPlayer::GetInstance().Stop();
+                return true;
+            });
     }
 };
 

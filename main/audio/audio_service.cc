@@ -798,9 +798,19 @@ void AudioService::SetModelsList(srmodel_list_t* models_list) {
 }
 
 bool AudioService::IsAfeWakeWord() {
-#if CONFIG_IDF_TARGET_ESP32S3 || CONFIG_IDF_TARGET_ESP32P4
-    return wake_word_ != nullptr && dynamic_cast<AfeWakeWord*>(wake_word_.get()) != nullptr;
+#if CONFIG_USE_AUDIO_PROCESSOR
+    return true;
 #else
     return false;
 #endif
+}
+
+void AudioService::KeepAlive() {
+    last_output_time_ = std::chrono::steady_clock::now();
+    // Also ensure output is enabled if it was disabled
+    if (codec_ && !codec_->output_enabled()) {
+        esp_timer_stop(audio_power_timer_);
+        esp_timer_start_periodic(audio_power_timer_, AUDIO_POWER_CHECK_INTERVAL_MS * 1000);
+        codec_->EnableOutput(true);
+    }
 }

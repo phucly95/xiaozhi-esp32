@@ -8,7 +8,9 @@
 
 // Audio I2S Configuration - 1 Mic version
 #define AUDIO_INPUT_SAMPLE_RATE  16000
-#define AUDIO_OUTPUT_SAMPLE_RATE 24000
+// Standardize on 16000Hz to match Input and TTS
+// Previous 24000Hz setting caused pitch/speed issues
+#define AUDIO_OUTPUT_SAMPLE_RATE 16000
 
 // Microphone Input (INMP441 or similar PDM/I2S mic)
 #define AUDIO_I2S_MIC_GPIO_WS   GPIO_NUM_4

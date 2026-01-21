@@ -132,6 +132,9 @@ public:
     bool ReadAudioData(std::vector<int16_t>& data, int sample_rate, int samples);
     void ResetDecoder();
     void SetModelsList(srmodel_list_t* models_list);
+    
+    // Prevent amp shutdown by updating last output time
+    void KeepAlive();
 
 private:
     AudioCodec* codec_ = nullptr;

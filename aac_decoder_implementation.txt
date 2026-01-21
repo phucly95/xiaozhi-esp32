@@ -1,0 +1,421 @@
+// radio_player.cc - Implementation với AAC support
+
+#include "radio_player.h"
+#include <string.h>
+#include <esp_log.h>
+#include <esp_heap_caps.h>
+#include "esp_crt_bundle.h"
+
+#define MINIMP3_IMPLEMENTATION
+#define MINIMP3_FLOAT_OUTPUT
+#include "minimp3.h"
+
+#define TAG "RadioPlayer"
+
+// Buffer sizes
+#define COMPRESSED_BUFFER_SIZE (64 * 1024)
+#define PCM_BUFFER_SIZE (32 * 1024)
+
+RadioPlayer::RadioPlayer()
+    : state_(State::IDLE)
+    , current_station_(nullptr)
+    , codec_type_(CodecType::UNKNOWN)
+    , http_client_(nullptr)
+    , compressed_buffer_(nullptr)
+    , pcm_buffer_(nullptr)
+    , mp3_decoder_(nullptr)
+    , aac_decoder_(nullptr)
+    , codec_(nullptr)
+    , http_task_(nullptr)
+    , decoder_task_(nullptr)
+    , i2s_task_(nullptr)
+    , should_stop_(false)
+    , volume_(70)
+{
+    // MP3 decoder init
+    mp3_decoder_ = malloc(sizeof(mp3dec_t));
+    if (mp3_decoder_) {
+        mp3dec_init((mp3dec_t*)mp3_decoder_);
+    }
+}
+
+RadioPlayer::~RadioPlayer() {
+    Stop();
+    CleanupDecoder();
+    if (compressed_buffer_) delete compressed_buffer_;
+    if (pcm_buffer_) delete pcm_buffer_;
+}
+
+bool RadioPlayer::Initialize(AudioCodec* codec) {
+    ESP_LOGI(TAG, "Initializing Radio Player with Multi-Codec support");
+    
+    codec_ = codec;
+    
+    // Create ring buffers in PSRAM
+    compressed_buffer_ = new RingBuffer(COMPRESSED_BUFFER_SIZE, true);
+    pcm_buffer_ = new RingBuffer(PCM_BUFFER_SIZE, true);
+    
+    if (!compressed_buffer_ || !pcm_buffer_) {
+        ESP_LOGE(TAG, "Failed to allocate buffers");
+        return false;
+    }
+    
+    ESP_LOGI(TAG, "Radio Player initialized");
+    return true;
+}
+
+RadioPlayer::CodecType RadioPlayer::DetectCodecType(const std::string& format) {
+    if (format == "mp3") {
+        return CodecType::MP3;
+    } else if (format == "aac") {
+        return CodecType::AAC;
+    } else if (format == "m4a") {
+        return CodecType::M4A;
+    }
+    
+    // Auto-detect from URL if format unknown
+    return CodecType::MP3; // Default to MP3
+}
+
+bool RadioPlayer::InitializeDecoder(CodecType type) {
+    codec_type_ = type;
+    
+    if (type == CodecType::MP3) {
+        // MP3 already initialized in constructor
+        mp3dec_init((mp3dec_t*)mp3_decoder_);
+        ESP_LOGI(TAG, "Using minimp3 decoder");
+        return true;
+    } 
+    else if (type == CodecType::AAC || type == CodecType::M4A) {
+        // Initialize ESP AAC decoder
+        esp_aac_dec_config_t aac_config = {
+            .out_sample_rate = ESP_AUDIO_SAMPLE_RATE_44K,
+            .out_channel = ESP_AUDIO_STEREO,
+            .out_bits_per_sample = ESP_AUDIO_BIT16,
+        };
+        
+        esp_audio_dec_config_t dec_config = {
+            .type = ESP_AUDIO_TYPE_AAC,
+            .cfg = &aac_config,
+            .cfg_sz = sizeof(aac_config),
+        };
+        
+        esp_audio_err_t ret = esp_aac_dec_open(&dec_config, &aac_decoder_);
+        if (ret != ESP_AUDIO_ERR_OK) {
+            ESP_LOGE(TAG, "Failed to init AAC decoder: %d", ret);
+            return false;
+        }
+        
+        ESP_LOGI(TAG, "Using ESP AAC decoder");
+        return true;
+    }
+    
+    ESP_LOGE(TAG, "Unsupported codec type");
+    return false;
+}
+
+void RadioPlayer::CleanupDecoder() {
+    if (aac_decoder_) {
+        esp_aac_dec_close(aac_decoder_);
+        aac_decoder_ = nullptr;
+    }
+    
+    if (mp3_decoder_) {
+        free(mp3_decoder_);
+        mp3_decoder_ = nullptr;
+    }
+}
+
+bool RadioPlayer::Play(const std::string& station_id) {
+    auto& db = RadioStationsDB::GetInstance();
+    auto station = db.GetStation(station_id);
+    
+    if (!station) {
+        ESP_LOGE(TAG, "Station not found: %s", station_id.c_str());
+        return false;
+    }
+    
+    ESP_LOGI(TAG, "Playing: %s (%s) - %s", 
+             station->name.c_str(), 
+             station->format.c_str(),
+             station->url.c_str());
+    
+    Stop();
+    
+    current_station_ = station;
+    state_ = State::CONNECTING;
+    
+    // Detect and initialize appropriate decoder
+    CodecType codec_type = DetectCodecType(station->format);
+    if (!InitializeDecoder(codec_type)) {
+        state_ = State::ERROR;
+        return false;
+    }
+    
+    // Clear buffers
+    compressed_buffer_->Clear();
+    pcm_buffer_->Clear();
+    
+    // Create HTTP client
+    esp_http_client_config_t config = {};
+    config.url = station->url.c_str();
+    config.event_handler = HttpEventHandler;
+    config.user_data = this;
+    config.timeout_ms = 5000;
+    config.buffer_size = 4096;
+    config.crt_bundle_attach = esp_crt_bundle_attach;
+    
+    http_client_ = esp_http_client_init(&config);
+    if (!http_client_) {
+        ESP_LOGE(TAG, "Failed to init HTTP client");
+        state_ = State::ERROR;
+        return false;
+    }
+    
+    // Set ICY metadata header
+    esp_http_client_set_header(http_client_, "Icy-MetaData", "1");
+    
+    // Create tasks
+    should_stop_ = false;
+    xTaskCreatePinnedToCore(HttpStreamTask, "http_stream", 8192, this, 5, &http_task_, 0);
+    xTaskCreatePinnedToCore(DecoderTask, "decoder", 8192, this, 4, &decoder_task_, 0);
+    xTaskCreatePinnedToCore(I2SOutputTask, "i2s_output", 4096, this, 3, &i2s_task_, 1);
+    
+    state_ = State::PLAYING;
+    return true;
+}
+
+void RadioPlayer::Stop() {
+    if (state_ == State::IDLE) {
+        return;
+    }
+    
+    ESP_LOGI(TAG, "Stopping");
+    
+    should_stop_ = true;
+    state_ = State::IDLE;
+    
+    // Wait for tasks to finish
+    vTaskDelay(pdMS_TO_TICKS(500));
+    
+    http_task_ = nullptr;
+    decoder_task_ = nullptr;
+    i2s_task_ = nullptr;
+    
+    // Cleanup
+    if (http_client_) {
+        esp_http_client_cleanup(http_client_);
+        http_client_ = nullptr;
+    }
+    
+    CleanupDecoder();
+    
+    if (compressed_buffer_) compressed_buffer_->Clear();
+    if (pcm_buffer_) pcm_buffer_->Clear();
+    
+    current_station_ = nullptr;
+}
+
+void RadioPlayer::SetVolume(int level) {
+    volume_ = level < 0 ? 0 : (level > 100 ? 100 : level);
+}
+
+// HTTP Stream Task (same as before)
+void RadioPlayer::HttpStreamTask(void* param) {
+    RadioPlayer* player = static_cast<RadioPlayer*>(param);
+    player->HttpStreamLoop();
+    vTaskDelete(nullptr);
+}
+
+void RadioPlayer::HttpStreamLoop() {
+    ESP_LOGI(TAG, "HTTP task started");
+    
+    esp_err_t err = esp_http_client_open(http_client_, 0);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "HTTP open failed: %s", esp_err_to_name(err));
+        state_ = State::ERROR;
+        return;
+    }
+    
+    esp_http_client_fetch_headers(http_client_);
+    
+    int status = esp_http_client_get_status_code(http_client_);
+    ESP_LOGI(TAG, "HTTP Status: %d", status);
+    
+    if (status != 200) {
+        ESP_LOGE(TAG, "Invalid HTTP status");
+        state_ = State::ERROR;
+        esp_http_client_close(http_client_);
+        return;
+    }
+    
+    uint8_t* buffer = (uint8_t*)malloc(4096);
+    
+    while (!should_stop_) {
+        int read_len = esp_http_client_read(http_client_, (char*)buffer, 4096);
+        
+        if (read_len > 0) {
+            size_t written = compressed_buffer_->Write(buffer, read_len, pdMS_TO_TICKS(1000));
+            if (written < read_len) {
+                ESP_LOGW(TAG, "Buffer full, wrote %d/%d", written, read_len);
+            }
+        } else if (read_len == 0) {
+            ESP_LOGW(TAG, "Stream ended");
+            break;
+        } else {
+            ESP_LOGE(TAG, "Read error: %d", read_len);
+            break;
+        }
+    }
+    
+    free(buffer);
+    esp_http_client_close(http_client_);
+    ESP_LOGI(TAG, "HTTP task ended");
+}
+
+// Decoder Task - Multi-format support
+void RadioPlayer::DecoderTask(void* param) {
+    RadioPlayer* player = static_cast<RadioPlayer*>(param);
+    player->DecoderLoop();
+    vTaskDelete(nullptr);
+}
+
+void RadioPlayer::DecoderLoop() {
+    ESP_LOGI(TAG, "Decoder task started (codec: %d)", (int)codec_type_);
+    
+    uint8_t* input_buf = (uint8_t*)malloc(4096);
+    int16_t* pcm_buf = (int16_t*)heap_caps_malloc(
+        MINIMP3_MAX_SAMPLES_PER_FRAME * sizeof(int16_t), 
+        MALLOC_CAP_SPIRAM
+    );
+    
+    if (codec_type_ == CodecType::MP3) {
+        // MP3 decoding (existing code)
+        mp3d_sample_t* pcm_float = (mp3d_sample_t*)heap_caps_malloc(
+            MINIMP3_MAX_SAMPLES_PER_FRAME * sizeof(mp3d_sample_t), 
+            MALLOC_CAP_SPIRAM
+        );
+        
+        while (!should_stop_) {
+            size_t read = compressed_buffer_->Read(input_buf, 4096, pdMS_TO_TICKS(100));
+            if (read == 0) {
+                vTaskDelay(pdMS_TO_TICKS(10));
+                continue;
+            }
+            
+            mp3dec_frame_info_t info;
+            int samples = mp3dec_decode_frame(
+                (mp3dec_t*)mp3_decoder_, 
+                input_buf, 
+                read, 
+                pcm_float, 
+                &info
+            );
+            
+            if (samples > 0) {
+                // Convert float to int16 with volume
+                for (int i = 0; i < samples * info.channels; i++) {
+                    float sample = pcm_float[i] * (volume_ / 100.0f);
+                    if (sample > 32767.0f) sample = 32767.0f;
+                    if (sample < -32768.0f) sample = -32768.0f;
+                    pcm_buf[i] = (int16_t)sample;
+                }
+                
+                size_t pcm_bytes = samples * info.channels * sizeof(int16_t);
+                pcm_buffer_->Write((uint8_t*)pcm_buf, pcm_bytes, pdMS_TO_TICKS(1000));
+            }
+        }
+        
+        free(pcm_float);
+    }
+    else if (codec_type_ == CodecType::AAC || codec_type_ == CodecType::M4A) {
+        // AAC decoding
+        esp_audio_dec_in_frame_t in_frame = {};
+        esp_audio_dec_out_frame_t out_frame = {};
+        
+        in_frame.buffer = input_buf;
+        out_frame.buffer = (uint8_t*)pcm_buf;
+        out_frame.len = MINIMP3_MAX_SAMPLES_PER_FRAME * sizeof(int16_t);
+        
+        while (!should_stop_) {
+            size_t read = compressed_buffer_->Read(input_buf, 4096, pdMS_TO_TICKS(100));
+            if (read == 0) {
+                vTaskDelay(pdMS_TO_TICKS(10));
+                continue;
+            }
+            
+            in_frame.len = read;
+            
+            esp_audio_err_t ret = esp_aac_dec_process(aac_decoder_, &in_frame, &out_frame);
+            
+            if (ret == ESP_AUDIO_ERR_OK && out_frame.decoded_bytes > 0) {
+                // Apply volume
+                int16_t* samples = (int16_t*)out_frame.buffer;
+                int num_samples = out_frame.decoded_bytes / sizeof(int16_t);
+                
+                for (int i = 0; i < num_samples; i++) {
+                    int32_t sample = samples[i] * volume_ / 100;
+                    if (sample > 32767) sample = 32767;
+                    if (sample < -32768) sample = -32768;
+                    samples[i] = (int16_t)sample;
+                }
+                
+                pcm_buffer_->Write(out_frame.buffer, out_frame.decoded_bytes, pdMS_TO_TICKS(1000));
+            }
+        }
+    }
+    
+    free(input_buf);
+    free(pcm_buf);
+    ESP_LOGI(TAG, "Decoder task ended");
+}
+
+// I2S Output Task (same as before)
+void RadioPlayer::I2SOutputTask(void* param) {
+    RadioPlayer* player = static_cast<RadioPlayer*>(param);
+    player->I2SOutputLoop();
+    vTaskDelete(nullptr);
+}
+
+void RadioPlayer::I2SOutputLoop() {
+    ESP_LOGI(TAG, "I2S task started");
+    
+    int16_t* buffer = (int16_t*)heap_caps_malloc(2048 * sizeof(int16_t), MALLOC_CAP_SPIRAM);
+    std::vector<int16_t> vec_buffer;
+    vec_buffer.reserve(2048);
+    
+    while (!should_stop_) {
+        size_t bytes_read = pcm_buffer_->Read((uint8_t*)buffer, 2048 * sizeof(int16_t), pdMS_TO_TICKS(100));
+        
+        if (bytes_read > 0) {
+            size_t samples_read = bytes_read / sizeof(int16_t);
+            vec_buffer.assign(buffer, buffer + samples_read);
+            
+            if (codec_) {
+                codec_->OutputData(vec_buffer);
+            }
+        } else {
+            vTaskDelay(pdMS_TO_TICKS(10));
+        }
+    }
+    
+    free(buffer);
+    ESP_LOGI(TAG, "I2S task ended");
+}
+
+esp_err_t RadioPlayer::HttpEventHandler(esp_http_client_event_t* evt) {
+    switch (evt->event_id) {
+    case HTTP_EVENT_ON_CONNECTED:
+        ESP_LOGI(TAG, "HTTP connected");
+        break;
+    case HTTP_EVENT_ON_HEADER:
+        ESP_LOGD(TAG, "Header: %s: %s", evt->header_key, evt->header_value);
+        break;
+    case HTTP_EVENT_DISCONNECTED:
+        ESP_LOGW(TAG, "HTTP disconnected");
+        break;
+    default:
+        break;
+    }
+    return ESP_OK;
+}
