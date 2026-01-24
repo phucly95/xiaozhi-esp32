@@ -2461,6 +2461,10 @@ CONFIG_WIFI_PROV_STA_ALL_CHANNEL_SCAN=y
 # end of Wi-Fi Provisioning Manager
 
 #
+# SH1106 ESP-IDF Driver
+#
+
+#
 # ESP Emote Graphics Framework
 #
 # CONFIG_GFX_FONT_FREETYPE_SUPPORT is not set
@@ -2638,7 +2642,6 @@ CONFIG_CAM_CTLR_SPI_DECODE_TASK_PRIORITY=10
 #
 # Audio Codec Device Configuration
 #
-# CONFIG_CODEC_I2C_BACKWARD_COMPATIBLE is not set
 CONFIG_CODEC_ES8311_SUPPORT=y
 CONFIG_CODEC_ES7210_SUPPORT=y
 CONFIG_CODEC_ES7243_SUPPORT=y
@@ -3122,10 +3125,6 @@ CONFIG_LVGL_VERSION_PATCH=0
 # CONFIG_LV_BUILD_DEMOS is not set
 # end of Demos
 # end of LVGL configuration
-
-#
-# SH1106 ESP-IDF Driver
-#
 # end of Component config
 
 # CONFIG_IDF_EXPERIMENTAL_FEATURES is not set
