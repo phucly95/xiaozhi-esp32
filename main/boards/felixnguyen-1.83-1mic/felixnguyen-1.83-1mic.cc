@@ -6,6 +6,7 @@
 #include "button.h"
 #include "config.h"
 #include "power_save_timer.h"
+#include "font_emoji.h"
 #include "assets/lang_config.h"
 #include "mcp_server.h"
 // #include "audio/radio_player.h"
@@ -201,9 +202,12 @@ private:
         ESP_ERROR_CHECK(esp_lcd_panel_set_gap(panel_, 36, 0));
         ESP_ERROR_CHECK(esp_lcd_panel_disp_on_off(panel_, true));
 
-        display_ = new SpiLcdDisplay(panel_io_, panel_, DISPLAY_WIDTH, DISPLAY_HEIGHT, 0, 0, 
+        // Initialize LVGL early so lv_imgfont_create can allocate memory for emoji font
+        lv_init();
+
+        display_ = new SpiLcdDisplay(panel_io_, panel_, DISPLAY_WIDTH, DISPLAY_HEIGHT, 0, 0,
             DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY,
-            {&font_roboto_20_4, &font_awesome_20_4, &font_awesome_20_4});
+            {&font_roboto_20_4, &font_awesome_20_4, font_emoji_32_init()});
     }
 
 public:
