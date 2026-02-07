@@ -2,19 +2,33 @@
 
 #include <esp_log.h>
 #include <esp_task_wdt.h>
+#include <esp_heap_caps.h>
 
 #define TAG "BackgroundTask"
 
 BackgroundTask::BackgroundTask(uint32_t stack_size) {
-    xTaskCreate([](void* arg) {
-        BackgroundTask* task = (BackgroundTask*)arg;
-        task->BackgroundTaskLoop();
-    }, "background_task", stack_size, this, 2, &background_task_handle_);
+    // Allocate stack on PSRAM to save internal RAM (~28KB)
+    task_stack_ = (StackType_t*)heap_caps_malloc(stack_size, MALLOC_CAP_SPIRAM);
+    if (task_stack_ != nullptr) {
+        background_task_handle_ = xTaskCreateStatic([](void* arg) {
+            BackgroundTask* task = (BackgroundTask*)arg;
+            task->BackgroundTaskLoop();
+        }, "background_task", stack_size, this, 2, task_stack_, &task_tcb_);
+    } else {
+        ESP_LOGW(TAG, "PSRAM alloc failed, falling back to internal RAM");
+        xTaskCreate([](void* arg) {
+            BackgroundTask* task = (BackgroundTask*)arg;
+            task->BackgroundTaskLoop();
+        }, "background_task", stack_size, this, 2, &background_task_handle_);
+    }
 }
 
 BackgroundTask::~BackgroundTask() {
     if (background_task_handle_ != nullptr) {
         vTaskDelete(background_task_handle_);
+    }
+    if (task_stack_ != nullptr) {
+        heap_caps_free(task_stack_);
     }
 }
 

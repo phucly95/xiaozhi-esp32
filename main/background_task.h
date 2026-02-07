@@ -21,6 +21,8 @@ private:
     std::list<std::function<void()>> main_tasks_;
     std::condition_variable condition_variable_;
     TaskHandle_t background_task_handle_ = nullptr;
+    StackType_t* task_stack_ = nullptr;
+    StaticTask_t task_tcb_;
     std::atomic<size_t> active_tasks_{0};
 
     void BackgroundTaskLoop();

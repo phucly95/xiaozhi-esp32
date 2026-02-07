@@ -20,6 +20,7 @@
 
 #include <driver/rtc_io.h>
 #include <esp_sleep.h>
+#include <esp_heap_caps.h>
 
 #define TAG "FELIXNGUYEN_1_83_1MIC"
 
@@ -125,7 +126,7 @@ private:
         buscfg.sclk_io_num = DISPLAY_SCL;
         buscfg.quadwp_io_num = GPIO_NUM_NC;
         buscfg.quadhd_io_num = GPIO_NUM_NC;
-        buscfg.max_transfer_sz = DISPLAY_HEIGHT * 80 * sizeof(uint16_t);
+        buscfg.max_transfer_sz = DISPLAY_HEIGHT * 40 * sizeof(uint16_t);
         ESP_ERROR_CHECK(spi_bus_initialize(SPI3_HOST, &buscfg, SPI_DMA_CH_AUTO));
     }
 
@@ -220,7 +221,12 @@ public:
         InitializeButtons();
         InitializeNv3030bDisplay();
         GetBacklight()->RestoreBrightness();
-        
+
+        ESP_LOGI(TAG, "Heap after init - Free internal: %u, min internal: %u, free PSRAM: %u",
+            heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
+            heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL),
+            heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
+
         // Initialize radio player and register MCP tools
         // RadioPlayer::GetInstance().Initialize(GetAudioCodec());
         // RegisterRadioTools();
