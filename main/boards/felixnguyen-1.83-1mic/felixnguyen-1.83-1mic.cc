@@ -98,7 +98,7 @@ private:
         rtc_gpio_set_direction(GPIO_NUM_21, RTC_GPIO_MODE_OUTPUT_ONLY);
         rtc_gpio_set_level(GPIO_NUM_21, 1);
 
-        power_save_timer_ = new PowerSaveTimer(-1, 60, 300);
+        power_save_timer_ = new PowerSaveTimer(-1, 60, -1);
         power_save_timer_->OnEnterSleepMode([this]() {
             // GetDisplay()->SetPowerSaveMode(true); // Helper removed as it's not in Display interface
             GetBacklight()->SetBrightness(1);
