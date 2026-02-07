@@ -21,6 +21,8 @@ choice
         bool "English"
     config LANGUAGE_JA_JP
         bool "Japanese"
+    config LANGUAGE_VI_VN
+        bool "Vietnamese"
 endchoice
 
 choice BOARD_TYPE
@@ -172,6 +174,8 @@ choice BOARD_TYPE
         bool "敏思科技K08(DUAL)"
     config BOARD_TYPE_ESP32_S3_1_54_MUMA
         bool "Spotpear ESP32-S3-1.54-MUMA"
+    config BOARD_TYPE_FELIXNGUYEN_1_83_1MIC
+        bool "FelixNguyen 1.83 1Mic"
 endchoice
 
 choice ESP_S3_LCD_EV_Board_Version_TYPE

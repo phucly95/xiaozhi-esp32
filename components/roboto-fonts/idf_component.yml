@@ -1,0 +1,3 @@
+description: Roboto fonts for Vietnamese language support
+dependencies:
+  lvgl/lvgl: "*"

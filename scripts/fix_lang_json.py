@@ -1,0 +1,71 @@
+
+import json
+import os
+
+content = {
+    "language": {
+        "type": "vi-VN"
+    },
+    "strings": {
+        "WARNING": "Cảnh báo",
+        "INFO": "Thông tin",
+        "ERROR": "Lỗi",
+        "VERSION": "Ver ",
+        "LOADING_PROTOCOL": "Đang đăng nhập...",
+        "INITIALIZING": "Đang khởi tạo...",
+        "PIN_ERROR": "Vui lòng lắp SIM",
+        "REG_ERROR": "Lỗi mạng, kiểm tra SIM",
+        "DETECTING_MODULE": "Đang tìm module...",
+        "REGISTERING_NETWORK": "Đang kết nối...",
+        "CHECKING_NEW_VERSION": "Kiểm tra bản mới...",
+        "CHECK_NEW_VERSION_FAILED": "Kiểm tra lỗi, thử lại sau %d giây: %s",
+        "SWITCH_TO_WIFI_NETWORK": "Chuyển sang Wi-Fi...",
+        "SWITCH_TO_4G_NETWORK": "Chuyển sang 4G...",
+        "STANDBY": "Chờ lệnh",
+        "CONNECT_TO": "Kết nối tới ",
+        "CONNECTING": "Đang kết nối...",
+        "CONNECTION_SUCCESSFUL": "Kết nối thành công",
+        "CONNECTED_TO": "Đã kết nối ",
+        "LISTENING": "Đang nghe...",
+        "SPEAKING": "Đang nói...",
+        "SERVER_NOT_FOUND": "Tìm máy chủ...",
+        "SERVER_NOT_CONNECTED": "Không kết nối được máy chủ",
+        "SERVER_TIMEOUT": "Hết thời gian chờ",
+        "SERVER_ERROR": "Lỗi gửi tin, kiểm tra mạng",
+        "CONNECT_TO_HOTSPOT": "Hotspot: ",
+        "ACCESS_VIA_BROWSER": " Cấu hình URL: ",
+        "WIFI_CONFIG_MODE": "Chế độ cấu hình Wi-Fi",
+        "ENTERING_WIFI_CONFIG_MODE": "Vào chế độ cấu hình...",
+        "SCANNING_WIFI": "Đang quét Wi-Fi...",
+        "NEW_VERSION": "Phiên bản mới ",
+        "OTA_UPGRADE": "Nâng cấp OTA",
+        "UPGRADING": "Đang nâng cấp...",
+        "UPGRADE_FAILED": "Nâng cấp thất bại",
+        "ACTIVATION": "Kích hoạt",
+        "BATTERY_LOW": "Pin yếu",
+        "BATTERY_CHARGING": "Đang sạc",
+        "BATTERY_FULL": "Pin đầy",
+        "BATTERY_NEED_CHARGE": "Sạc ngay",
+        "VOLUME": "Âm lượng ",
+        "MUTED": "Đã tắt tiếng",
+        "MAX_VOLUME": "Max âm lượng",
+        "RTC_MODE_OFF": "AEC Tắt",
+        "RTC_MODE_ON": "AEC Bật"
+    }
+}
+
+target_file = 'D:/Coding/Learning/IOT/ESP32-s3/xiaozhi-esp32/main/assets/vi-VN/language.json'
+os.makedirs(os.path.dirname(target_file), exist_ok=True)
+
+try:
+    with open(target_file, 'w', encoding='utf-8') as f:
+        f.write(json.dumps(content, ensure_ascii=False, indent=4))
+    print(f"Successfully wrote {target_file} with UTF-8 encoding.")
+    
+    # Verification check
+    with open(target_file, 'r', encoding='utf-8') as f:
+        json.load(f)
+    print("Verification successful: File is valid JSON and readable as UTF-8.")
+
+except Exception as e:
+    print(f"Error writing file: {e}")

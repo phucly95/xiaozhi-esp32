@@ -180,6 +180,11 @@ elseif(CONFIG_BOARD_TYPE_ZHENGCHEN_1_54TFT_ML307)
     set(BOARD_TYPE "zhengchen-1.54tft-ml307")
 elseif(CONFIG_BOARD_TYPE_ESP32_S3_1_54_MUMA)
     set(BOARD_TYPE "sp-esp32-s3-1.54-muma")
+elseif(CONFIG_BOARD_TYPE_FELIXNGUYEN_1_83_1MIC)
+    set(BOARD_TYPE "felixnguyen-1.83-1mic")
+    set(BUILTIN_TEXT_FONT font_roboto_20_4)
+    set(BUILTIN_ICON_FONT font_awesome_20_4)
+    set(DEFAULT_EMOJI_COLLECTION twemoji_64)
 endif()
 file(GLOB BOARD_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/boards/${BOARD_TYPE}/*.cc
@@ -205,6 +210,8 @@ elseif(CONFIG_LANGUAGE_EN_US)
     set(LANG_DIR "en-US")
 elseif(CONFIG_LANGUAGE_JA_JP)
     set(LANG_DIR "ja-JP")
+elseif(CONFIG_LANGUAGE_VI_VN)
+    set(LANG_DIR "vi-VN")
 endif()
 
 # 定义生成路径
@@ -219,6 +226,11 @@ if(CONFIG_IDF_TARGET_ESP32)
                              "audio_codecs/es8388_audio_codec.cc"
                              "led/gpio_led.cc"
                              )
+endif()
+
+# Exclude esp32_camera.cc for boards that don't need it or have conflicts
+if(CONFIG_BOARD_TYPE_FELIXNGUYEN_1_83_1MIC)
+    list(REMOVE_ITEM SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/boards/common/esp32_camera.cc")
 endif()
 
 idf_component_register(SRCS ${SOURCES}

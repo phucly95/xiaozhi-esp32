@@ -167,7 +167,11 @@ std::string WifiBoard::GetBoardJson() {
 
 void WifiBoard::SetPowerSaveMode(bool enabled) {
     auto& wifi_station = WifiStation::GetInstance();
-    wifi_station.SetPowerSaveMode(enabled);
+    if (enabled) {
+        wifi_station.SetPowerSaveLevel(WifiPowerSaveLevel::LOW_POWER);
+    } else {
+        wifi_station.SetPowerSaveLevel(WifiPowerSaveLevel::PERFORMANCE);
+    }
 }
 
 void WifiBoard::ResetWifiConfiguration() {
